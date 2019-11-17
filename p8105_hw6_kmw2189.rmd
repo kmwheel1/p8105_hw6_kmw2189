@@ -6,7 +6,56 @@ output: github_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+knitr::opts_chunk$set(
+	echo = TRUE,
+	warning = FALSE,
+	fig.width = 8, 
+  fig.height = 6,
+  out.width = "90%"
+)
+options(
+  ggplot2.continuous.colour = "viridis",
+  ggplot2.continuous.fill = "viridis"
+)
+scale_colour_discrete = scale_colour_viridis_d
+scale_fill_discrete = scale_fill_viridis_d
+theme_set(theme_minimal() + theme(legend.position = "bottom"))
+
 ```
 
+## Problem 1
+```{r cleaning and tidying prob 1, output = FALSE}
+## load in data
+birthweight_df = read_csv("data/birthweight.csv") %>% 
+  janitor::clean_names()
+
+## checking for missings, etc.
+skimr::skim(birthweight_df)
+##there appear to be no missings for any of the the variables, yay!
+
+##changing the var type for babysex, mrace, and frace
+birthweight_df = birthweight_df %>% 
+  mutate(
+  sex = as.factor(babysex),
+  sex = recode(sex, "1" = "male", "2" = "female" ),
+  m_race = as.character(mrace),
+  m_race = recode(mrace, "1" = "White", "2" = "Black", "3" = "Asian", "4" = "Puerto Rican", "8" = "Other"),
+  f_race = as.character(frace),
+  f_race = recode(frace, "1" = "White", "2" = "Black", "3" = "Asian", "4" = "Puerto Rican", "8" = "Other", "9" = "Unknown")
+  ) %>% 
+  select(-babysex, -mrace, -frace) %>% 
+  select(sex, everything()) 
+ 
+```
+
+**Model fitting**
+
+From my experience working with birth outcomes, specifically birthweight, there are 3 covariates that are absolutely necessary to include in the model: gestational age, maternal BMI, and a socioeconomic status indicator. For this model I will use family income as the SES indicator. 
+```{r}
+birthwt_mdl_1 = lm(bwt ~ gaweeks + ppbmi + fincome, data = birthweight_df)
+
+summary(birthwt_mdl_1)
+  
+```
 
