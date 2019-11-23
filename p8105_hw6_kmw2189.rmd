@@ -7,6 +7,7 @@ output: github_document
 
 ```{r setup, include=FALSE}
 library(tidyverse)
+library(modelr)
 knitr::opts_chunk$set(
 	echo = TRUE,
 	warning = FALSE,
@@ -22,10 +23,12 @@ scale_colour_discrete = scale_colour_viridis_d
 scale_fill_discrete = scale_fill_viridis_d
 theme_set(theme_minimal() + theme(legend.position = "bottom"))
 
+set.seed(10)
+
 ```
 
 ## Problem 1
-```{r rerading and viewing prob 1, output = FALSE}
+```{r reading and reviewing data, results = 'hide'}
 ## load in data
 birthweight_df = read_csv("data/birthweight.csv") %>% 
   janitor::clean_names()
@@ -54,41 +57,111 @@ birthweight_df = birthweight_df %>%
 
 **Model fitting**
 
-From my experience working with birth outcomes, specifically birthweight, there are 3 covariates that are absolutely necessary to include in the model: gestational age, maternal BMI, and a socioeconomic status indicator. For this model I will use family income as the SES indicator. 
-```{r}
-birthwt_mdl_1 = lm(bwt ~ gaweeks + ppbmi + fincome, data = birthweight_df) 
+From my experience working with birth outcomes, specifically birthweight, there are 3 covariates that are necessary to include in the model: gestational age, maternal BMI, and a socioeconomic status (SES) indicator. For this model I will use family income as the SES indicator. 
 
-birthwt_mdl_1 %>% 
-  broom::tidy() 
-
+```{r fitting model 1}
+birthwt_mdl_1 = lm(bwt ~ gaweeks + ppbmi + fincome, data = birthweight_df)
 ```
 
-```{r}
+```{r visualization of model 1}
+##plot of model residuals against fitted values
 birthweight_df %>% 
   modelr::add_residuals(birthwt_mdl_1) %>% 
   modelr::add_predictions(birthwt_mdl_1) %>% 
-  ggplot(aes(x = pred, y = resid)) + geom_point()
-
+  ggplot(aes(x = pred, y = resid)) + 
+  geom_point(alpha = 0.5) +
+  labs(
+      title = "Model 1 residuals against predicted values",
+      x = "Predicted Values",
+      y = "Residuals",
+      caption = "Summary of predicted values from a model of birthweight by the residuals of the model"
+  )
 ```
 
 Compare your model to two others:
 
 One using length at birth and gestational age as predictors (main effects only)
-```{r}
+```{r creating model 2}
 birthwt_mdl_2 = lm(bwt ~ gaweeks + blength, data = birthweight_df) 
 
-birthwt_mdl_2 %>% 
-  broom::tidy() 
 ```
 
 One using head circumference, length, sex, and all interactions (including the three-way interaction) between these
-```{r}
+```{r creating model 3}
 birthwt_mdl_3 = lm(bwt ~ bhead + blength + sex + bhead*blength + bhead*sex + blength*sex + bhead*blength*sex, data = birthweight_df) 
 
-birthwt_mdl_3 %>% 
-  broom::tidy() 
 ```
 
-I was surprised to find that there were so many 
-
 Make this comparison in terms of the cross-validated prediction error; use crossv_mc and functions in purrr as appropriate.
+```{r plotting models}
+##Plotting predicted birthweight values against the true birthwight values for each model. 
+birthweight_df %>% 
+  gather_predictions(birthwt_mdl_1, birthwt_mdl_2, birthwt_mdl_3) %>% 
+  mutate(model = fct_inorder(model)) %>% 
+  ggplot(aes(x = bwt, y = pred))  + 
+  geom_point() + 
+  ##geom_line(aes(y = pred), color = "red") + 
+  facet_wrap(~model)
+```
+
+```{r using modelr for cross validation}
+##create the training and testing datasets using modelr
+cv_df =
+  crossv_mc(birthweight_df, 100)
+
+##use mutate + map & map2 to fit models to training data and obtain corresponding RMSEs for the testing data
+cv_df = 
+  cv_df %>% 
+  mutate(
+    birthwt_mdl_1 = map(train, ~lm(bwt ~ gaweeks + ppbmi + fincome, data = .x)), 
+    birthwt_mdl_2 = map(train, ~lm(bwt ~ gaweeks + blength, data = .x)),
+    birthwt_mdl_3 = map(train, ~lm(bwt ~ bhead + blength + sex + bhead*blength + bhead*sex + blength*sex + bhead*blength*sex, data = as_tibble(.x)))
+    ) %>% 
+  mutate(
+    rmse_mdl_1 = map2_dbl(birthwt_mdl_1, test, ~rmse(model = .x, data = .y)),
+    rmse_mdl_2 = map2_dbl(birthwt_mdl_2, test, ~rmse(model = .x, data = .y)),
+    rmse_mdl_3 = map2_dbl(birthwt_mdl_3, test, ~rmse(model = .x, data = .y))
+    )
+```
+
+```{r plotting RMSEs}
+##plotting rmse for each model
+cv_df %>% 
+  select(starts_with("rmse")) %>% 
+pivot_longer(
+    everything(),
+    names_to = "model", 
+    values_to = "rmse",
+    names_prefix = "rmse_") %>% 
+  mutate(model = fct_inorder(model)) %>% 
+  ggplot(aes(x = model, y = rmse)) + 
+  geom_violin() +
+  labs(
+      title = "RMSEs for each model",
+      x = "Model",
+      y = "RMSE",
+      caption = "Evaluating the best fit of models predicting birthweight"
+  )
+```
+
+**Conclusion**
+My initially predicted model using gestational age, maternal BMI, and income as an SES measure did not perform nearly as well as I anticipated! Model 3, or the "fully loaded" model containing head cinrumference, birth length and sex interactions perfomred the best. If I were to revise my original model I would definitely include birth length. 
+
+## Question 2
+
+```{r}
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2017-01-01",
+    date_max = "2017-12-31") %>%
+  mutate(
+    name = recode(id, USW00094728 = "CentralPark_NY"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) %>%
+  select(name, id, everything())
+```
+
+Use 5000 bootstrap samples and, for each bootstrap sample, produce estimates of these two quantities. Plot the distribution of your estimates, and describe these in words. Using the 5000 bootstrap estimates, identify the 2.5% and 97.5% quantiles to provide a 95% confidence interval for r^2 and log(β^0∗β^1). Note: broom::glance() is helpful for extracting r^2 from a fitted regression, and broom::tidy() (with some additional wrangling) should help in computing log(β^0∗β^1).
+
