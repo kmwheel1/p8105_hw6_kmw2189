@@ -25,7 +25,7 @@ theme_set(theme_minimal() + theme(legend.position = "bottom"))
 ```
 
 ## Problem 1
-```{r cleaning and tidying prob 1, output = FALSE}
+```{r rerading and viewing prob 1, output = FALSE}
 ## load in data
 birthweight_df = read_csv("data/birthweight.csv") %>% 
   janitor::clean_names()
@@ -33,7 +33,10 @@ birthweight_df = read_csv("data/birthweight.csv") %>%
 ## checking for missings, etc.
 skimr::skim(birthweight_df)
 ##there appear to be no missings for any of the the variables, yay!
+```
 
+
+```{r cleaning and tidying prob 1}
 ##changing the var type for babysex, mrace, and frace
 birthweight_df = birthweight_df %>% 
   mutate(
@@ -53,9 +56,36 @@ birthweight_df = birthweight_df %>%
 
 From my experience working with birth outcomes, specifically birthweight, there are 3 covariates that are absolutely necessary to include in the model: gestational age, maternal BMI, and a socioeconomic status indicator. For this model I will use family income as the SES indicator. 
 ```{r}
-birthwt_mdl_1 = lm(bwt ~ gaweeks + ppbmi + fincome, data = birthweight_df)
+birthwt_mdl_1 = lm(bwt ~ gaweeks + ppbmi + fincome, data = birthweight_df) 
 
-summary(birthwt_mdl_1)
-  
+birthwt_mdl_1 %>% 
+  broom::tidy() 
+
+```
+
+```{r}
+birthweight_df %>% 
+  modelr::add_residuals(birthwt_mdl_1) %>% 
+  modelr::add_predictions(birthwt_mdl_1) %>% 
+  ggplot(aes(x = pred, y = resid)) + geom_point()
+
+```
+
+Compare your model to two others:
+
+One using length at birth and gestational age as predictors (main effects only)
+```{r}
+birthwt_mdl_2 = lm(bwt ~ gaweeks + blength, data = birthweight_df) 
+
+birthwt_mdl_2 %>% 
+  broom::tidy() 
+```
+
+One using head circumference, length, sex, and all interactions (including the three-way interaction) between these
+```{r}
+birthwt_mdl_3 = lm(bwt ~ bhead + blength + sex + bhead*blength + bhead*sex + blength*sex + bhead*blength*sex, data = birthweight_df) 
+
+birthwt_mdl_3 %>% 
+  broom::tidy() 
 ```
 
