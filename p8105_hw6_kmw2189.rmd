@@ -89,3 +89,6 @@ birthwt_mdl_3 %>%
   broom::tidy() 
 ```
 
+I was surprised to find that there were so many 
+
+Make this comparison in terms of the cross-validated prediction error; use crossv_mc and functions in purrr as appropriate.
