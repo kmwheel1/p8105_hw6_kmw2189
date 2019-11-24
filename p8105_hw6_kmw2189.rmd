@@ -28,6 +28,9 @@ set.seed(10)
 ```
 
 ## Problem 1
+
+**Loading and tidying data**
+
 ```{r reading and reviewing data, results = 'hide'}
 ## load in data
 birthweight_df = read_csv("data/birthweight.csv") %>% 
@@ -92,9 +95,11 @@ birthwt_mdl_3 = lm(bwt ~ bhead + blength + sex + bhead*blength + bhead*sex + ble
 
 ```
 
+**Comparing Models**
+
 Make this comparison in terms of the cross-validated prediction error; use crossv_mc and functions in purrr as appropriate.
 ```{r plotting models}
-##Plotting predicted birthweight values against the true birthwight values for each model. 
+##Plotting predicted birthweight values against the true birthwight values for each model
 birthweight_df %>% 
   gather_predictions(birthwt_mdl_1, birthwt_mdl_2, birthwt_mdl_3) %>% 
   mutate(model = fct_inorder(model)) %>% 
@@ -103,6 +108,7 @@ birthweight_df %>%
   ##geom_line(aes(y = pred), color = "red") + 
   facet_wrap(~model)
 ```
+
 
 ```{r using modelr for cross validation}
 ##create the training and testing datasets using modelr
@@ -145,11 +151,18 @@ pivot_longer(
 ```
 
 **Conclusion**
-My initially predicted model using gestational age, maternal BMI, and income as an SES measure did not perform nearly as well as I anticipated! Model 3, or the "fully loaded" model containing head cinrumference, birth length and sex interactions perfomred the best. If I were to revise my original model I would definitely include birth length. 
+
+My initially predicted model using gestational age, maternal BMI, and income as an SES measure did not perform nearly as well as I anticipated! Model 3, or the "fully loaded" model containing head circumference, birth length and sex interactions performed the best. If I were to revise my original model I would definitely include birth length. 
 
 ## Question 2
 
-```{r}
+Use 5000 bootstrap samples and, for each bootstrap sample, produce estimates of these two quantities. Plot the distribution of your estimates, and describe these in words. Using the 5000 bootstrap estimates, identify the 2.5% and 97.5% quantiles to provide a 95% confidence interval for r^2 and log(β^0∗β^1). 
+
+
+**Step One:**
+
+Load data and look at plot.
+```{r loading prob 2 data, warning = FALSE}
 weather_df = 
   rnoaa::meteo_pull_monitors(
     c("USW00094728"),
@@ -161,7 +174,56 @@ weather_df =
     tmin = tmin / 10,
     tmax = tmax / 10) %>%
   select(name, id, everything())
+
+##graph data
+weather_df %>% 
+  ggplot(aes(x = tmax, y = tmin)) + 
+  geom_point(alpha = .5) +
+  stat_smooth(method = "lm") 
 ```
 
-Use 5000 bootstrap samples and, for each bootstrap sample, produce estimates of these two quantities. Plot the distribution of your estimates, and describe these in words. Using the 5000 bootstrap estimates, identify the 2.5% and 97.5% quantiles to provide a 95% confidence interval for r^2 and log(β^0∗β^1). Note: broom::glance() is helpful for extracting r^2 from a fitted regression, and broom::tidy() (with some additional wrangling) should help in computing log(β^0∗β^1).
+
+**Step 2:**
+
+Generate the bootstrap data. 
+```{r}
+## one bootstrap
+boot_sample = function(df) {
+  sample_frac(df, replace = TRUE)
+}
+
+## check plot
+boot_sample(weather_df) %>% 
+  ggplot(aes(x = tmax, y = tmin)) + 
+  geom_point(alpha = .5) +
+  stat_smooth(method = "lm")
+##graph looks similar, but you can tell the points are slightly different. 
+
+## all the bootstraps
+boot_straps = 
+  data_frame(
+    strap_number = 1:5000,
+    strap_sample = rerun(5000, boot_sample(weather_df))
+  )
+```
+
+**Step 3:**
+
+Creating a simple linear regression with tmax as the response and tmin as the predictor
+```{r creating problem 2 regression}
+prob_2_reg = lm(tmax ~ tmin, data = weather_df)
+```
+
+**Step 4:**
+
+Generate the r^2 and log(β^0∗β^1) values to use for the 2.5% and 97.5% confidence intervals. 
+```{r r squared and log betas}
+##use broom::glance to get the rsquared info
+prob_2_reg %>% 
+  broom::glance()
+
+## use broom::tidy() (with some additional wrangling) to compute log(β^0∗β^1)
+prob_2_reg %>% 
+  broom::tidy()
+```
 
