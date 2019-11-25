@@ -158,10 +158,8 @@ My initially predicted model using gestational age, maternal BMI, and income as 
 
 Use 5000 bootstrap samples and, for each bootstrap sample, produce estimates of these two quantities. Plot the distribution of your estimates, and describe these in words. Using the 5000 bootstrap estimates, identify the 2.5% and 97.5% quantiles to provide a 95% confidence interval for r^2 and log(β^0∗β^1). 
 
+**Load data and look at plot**
 
-**Step One:**
-
-Load data and look at plot.
 ```{r loading prob 2 data, warning = FALSE}
 weather_df = 
   rnoaa::meteo_pull_monitors(
@@ -182,48 +180,68 @@ weather_df %>%
   stat_smooth(method = "lm") 
 ```
 
+**Bootstrap using modelr**
 
-**Step 2:**
-
-Generate the bootstrap data. 
 ```{r}
-## one bootstrap
-boot_sample = function(df) {
-  sample_frac(df, replace = TRUE)
-}
-
-## check plot
-boot_sample(weather_df) %>% 
-  ggplot(aes(x = tmax, y = tmin)) + 
-  geom_point(alpha = .5) +
-  stat_smooth(method = "lm")
-##graph looks similar, but you can tell the points are slightly different. 
-
-## all the bootstraps
-boot_straps = 
-  data_frame(
-    strap_number = 1:5000,
-    strap_sample = rerun(5000, boot_sample(weather_df))
+bootstrap_df = 
+  weather_df %>% 
+  modelr::bootstrap(n = 5000) %>% 
+  mutate(
+    models = map(strap, ~lm(tmax ~ tmin, data = .x)), 
+    rsquared = map(models, broom::glance),
+    results = map(models, broom::tidy)
+  ) %>% 
+  select(-strap, -models) %>% 
+  unnest(rsquared, results) %>% 
+  pivot_wider(
+    id_cols = c(.id, r.squared),
+    names_from = "term", 
+    values_from = "estimate"
+    ) %>% 
+  janitor::clean_names() %>% 
+  rename(
+    beta_0 = intercept, 
+    beta_1 = tmin 
+  ) %>% 
+  mutate(
+    beta_log = log(beta_0 * beta_1)
   )
+  
 ```
 
-**Step 3:**
+Plot the distribution of your estimates
+```{r}
+bootstrap_df %>%
+  ggplot(aes(x = r_squared)) + geom_density() +
+  labs(
+      title = "Distribution of R Squared",
+      x = "R Squared Values",
+      y = "Density",
+  )
 
-Creating a simple linear regression with tmax as the response and tmin as the predictor
-```{r creating problem 2 regression}
-prob_2_reg = lm(tmax ~ tmin, data = weather_df)
+bootstrap_df %>% 
+  ggplot(aes(x = beta_log)) + geom_density() +
+    labs(
+      title = "Distribution of Log (Beta 0 * Beta 1)",
+      x = "Log (Beta 0 * Beta 1)",
+      y = "Density",
+  )
+  
 ```
 
-**Step 4:**
+Both the distribution of the r squared values and the log of Beta 0  x Beta 1 appear to be normal.  A linear regressionwould be appropriate to use with the data. 
+
+
+Using the 5000 bootstrap estimates, identify the 2.5% and 97.5% quantiles to provide a 95% confidence interval for r^2 and log(β^0∗β^1)
+  
+  mutate(
+    r_squared = as.vector(r_squared)
+  ) %>% 
+  summarize(
+    conf_intr = quantile(r_squared, probs=c(0.025, 0.975), na.rm=TRUE)
+  )
+
 
 Generate the r^2 and log(β^0∗β^1) values to use for the 2.5% and 97.5% confidence intervals. 
-```{r r squared and log betas}
-##use broom::glance to get the rsquared info
-prob_2_reg %>% 
-  broom::glance()
 
-## use broom::tidy() (with some additional wrangling) to compute log(β^0∗β^1)
-prob_2_reg %>% 
-  broom::tidy()
-```
 
