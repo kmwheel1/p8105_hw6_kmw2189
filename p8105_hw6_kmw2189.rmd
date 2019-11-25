@@ -212,19 +212,21 @@ bootstrap_df =
 Plot the distribution of your estimates
 ```{r}
 bootstrap_df %>%
-  ggplot(aes(x = r_squared)) + geom_density() +
+  ggplot(aes(x = r_squared)) + 
+  geom_density() +
   labs(
       title = "Distribution of R Squared",
       x = "R Squared Values",
-      y = "Density",
+      y = "Density"
   )
 
 bootstrap_df %>% 
-  ggplot(aes(x = beta_log)) + geom_density() +
+  ggplot(aes(x = beta_log)) + 
+  geom_density() +
     labs(
       title = "Distribution of Log (Beta 0 * Beta 1)",
       x = "Log (Beta 0 * Beta 1)",
-      y = "Density",
+      y = "Density"
   )
   
 ```
@@ -233,15 +235,25 @@ Both the distribution of the r squared values and the log of Beta 0  x Beta 1 ap
 
 
 Using the 5000 bootstrap estimates, identify the 2.5% and 97.5% quantiles to provide a 95% confidence interval for r^2 and log(β^0∗β^1)
-  
+
+```{r}
+summary_vars_df = 
+  bootstrap_df %>%
   mutate(
-    r_squared = as.vector(r_squared)
+    r_squared = as.vector(r_squared),
+    beta_log = as.vector(beta_log)
   ) %>% 
   summarize(
-    conf_intr = quantile(r_squared, probs=c(0.025, 0.975), na.rm=TRUE)
+    r_squared_low = quantile(r_squared, probs = (0.025), na.rm=TRUE), 
+    r_squared_high = quantile(r_squared, probs = (0.975), na.rm=TRUE), 
+    log_beta_low = quantile(beta_log, probs = (0.025), na.rm=TRUE),
+    log_beta_high = quantile(beta_log, probs = (0.975), na.rm=TRUE)
   )
+  
+```
+
+The 95% confidence interval for r squared is `r round(pull(summary_vars_df, r_squared_low), digits = 2)` to `r round(pull(summary_vars_df, r_squared_high), digits = 2)` and the 95% confidence interval for log(β^0∗β^1) is `r round(pull(summary_vars_df, log_beta_low), digits = 2)` to `r round(pull(summary_vars_df, log_beta_high), digits = 2)`
 
 
-Generate the r^2 and log(β^0∗β^1) values to use for the 2.5% and 97.5% confidence intervals. 
 
 
